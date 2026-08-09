@@ -2,7 +2,8 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -19,42 +20,6 @@ import (
 	xhtml "golang.org/x/net/html"
 )
 
-type rssXML struct {
-	Channel struct {
-		Title string `xml:"title"`
-		Items []struct {
-			Title       string `xml:"title"`
-			Link        string `xml:"link"`
-			GUID        string `xml:"guid"`
-			PubDate     string `xml:"pubDate"`
-			Creator     string `xml:"creator"` // dc:creator, namespace-agnostic match
-			Author      string `xml:"author"`
-			Description string `xml:"description"`
-			Encoded     string `xml:"encoded"` // content:encoded, namespace-agnostic match
-		} `xml:"item"`
-	} `xml:"channel"`
-}
-
-type atomXML struct {
-	Title   string `xml:"title"`
-	Entries []struct {
-		Title string `xml:"title"`
-		Links []struct {
-			Href string `xml:"href,attr"`
-			Rel  string `xml:"rel,attr"`
-		} `xml:"link"`
-		ID        string `xml:"id"`
-		Published string `xml:"published"`
-		Updated   string `xml:"updated"`
-		Summary   string `xml:"summary"`
-		Content   string `xml:"content"`
-		Author    struct {
-			Name  string `xml:"name"`
-			Email string `xml:"email"`
-		} `xml:"author"`
-	} `xml:"entry"`
-}
-
 var dateLayouts = []string{
 	time.RFC1123Z, time.RFC1123, time.RFC3339, time.RFC822Z, time.RFC822,
 	"Mon, 2 Jan 2006 15:04:05 -0700", "2006-01-02T15:04:05Z",
@@ -70,89 +35,19 @@ func parseDate(s string) time.Time {
 	return time.Time{}
 }
 
-// RSS author format "email (Full Name)"
-var rssAuthorRE = regexp.MustCompile(`^([^\s()]+@[^\s()]+)\s*(?:\(([^)]*)\))?$`)
-
-func parseRSSAuthor(raw string) (name, email string) {
-	raw = strings.TrimSpace(raw)
-	if m := rssAuthorRE.FindStringSubmatch(raw); m != nil {
-		email = m[1]
-		name = strings.TrimSpace(m[2])
-		if name == "" {
-			name = email
-		}
-		return name, email
+// RSS/Atom carry no avatar field, Gravatar is used
+func gravatarURL(email string) string {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" {
+		return ""
 	}
-	return raw, ""
+	sum := md5.Sum([]byte(email))
+	return "https://www.gravatar.com/avatar/" + hex.EncodeToString(sum[:]) + "?d=mp&s=128"
 }
 
-// JSON Feed 1.1 (jsonfeed.org).
-type jsonFeed struct {
-	Title string `json:"title"`
-	Items []struct {
-		ID            string `json:"id"`
-		URL           string `json:"url"`
-		Title         string `json:"title"`
-		ContentHTML   string `json:"content_html"`
-		ContentText   string `json:"content_text"`
-		Summary       string `json:"summary"`
-		DatePublished string `json:"date_published"`
-		DateModified  string `json:"date_modified"`
-		Authors       []struct {
-			Name   string `json:"name"`
-			Avatar string `json:"avatar"`
-		} `json:"authors"`
-		Author struct {
-			Name   string `json:"name"` // JSON Feed 1.0's singular (deprecated) form
-			Avatar string `json:"avatar"`
-		} `json:"author"`
-	} `json:"items"`
-}
-
-func parseJSONFeed(data []byte, fetchedAt time.Time) (title string, articles []Article, err error) {
-	var f jsonFeed
-	if err := json.Unmarshal(data, &f); err != nil {
-		return "", nil, err
-	}
-	for _, it := range f.Items {
-		rawContent := it.ContentHTML
-		if rawContent == "" {
-			rawContent = it.ContentText
-		}
-		if rawContent == "" {
-			rawContent = it.Summary
-		}
-		link := it.URL
-		if link == "" {
-			link = it.ID
-		}
-		author, avatar := it.Author.Name, it.Author.Avatar
-		if len(it.Authors) > 0 && it.Authors[0].Name != "" {
-			author, avatar = it.Authors[0].Name, it.Authors[0].Avatar
-		}
-		if base, err := url.Parse(link); err == nil && base.IsAbs() {
-			avatar = resolveURL(avatar, base)
-		}
-		published := it.DatePublished
-		if published == "" {
-			published = it.DateModified
-		}
-		content := sanitizer.Sanitize(resolveRelativeURLs(rawContent, link))
-		articles = append(articles, Article{
-			Link:         link,
-			Title:        it.Title,
-			Author:       author,
-			AuthorAvatar: avatar,
-			PubDate:      parseDate(published),
-			Summary:      summarize(content, 220),
-			Content:      content,
-			FetchedAt:    fetchedAt,
-		})
-	}
-	return f.Title, articles, nil
-}
-
-var sanitizer = bluemonday.UGCPolicy()
+var sanitizer = bluemonday.UGCPolicy().AllowElements(
+	"table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col",
+)
 
 func resolveURL(rawURL string, base *url.URL) string {
 	ref, err := url.Parse(rawURL)
@@ -197,7 +92,11 @@ var (
 
 // HTML to plain-text snippet
 func summarize(rawHTML string, max int) string {
-	text := strings.TrimSpace(blankRunRE.ReplaceAllString(html.UnescapeString(tagRE.ReplaceAllString(rawHTML, " ")), " "))
+	noTags := tagRE.ReplaceAllString(rawHTML, " ")
+	unescaped := html.UnescapeString(noTags)
+	collapsed := blankRunRE.ReplaceAllString(unescaped, " ")
+	text := strings.TrimSpace(collapsed)
+
 	r := []rune(text)
 	if len(r) > max {
 		return string(r[:max]) + "…"
@@ -242,98 +141,38 @@ func FetchFeed(feedURL, etag, lastModified string) (FeedFetchResult, error) {
 		return FeedFetchResult{}, err
 	}
 
-	result := FeedFetchResult{ETag: resp.Header.Get("ETag"), LastModified: resp.Header.Get("Last-Modified")}
-	now := time.Now()
-
-	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '{' {
-		title, articles, err := parseJSONFeed(trimmed, now)
-		if err != nil {
-			return FeedFetchResult{}, err
-		}
-		result.Title = title
-		result.Articles = articles
-		return result, nil
+	parse, err := feedParser(data)
+	if err != nil {
+		return FeedFetchResult{}, fmt.Errorf("%s: %w", feedURL, err)
 	}
-
-	root, err := rootElement(data)
+	title, articles, err := parse(data, time.Now())
 	if err != nil {
 		return FeedFetchResult{}, err
 	}
+	return FeedFetchResult{
+		Title:        title,
+		Articles:     articles,
+		ETag:         resp.Header.Get("ETag"),
+		LastModified: resp.Header.Get("Last-Modified"),
+	}, nil
+}
 
+// picks the right format parser
+func feedParser(data []byte) (func([]byte, time.Time) (string, []Article, error), error) {
+	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '{' {
+		return parseJSONFeed, nil
+	}
+	root, err := rootElement(data)
+	if err != nil {
+		return nil, err
+	}
 	switch root {
 	case "rss":
-		var f rssXML
-		if err := xml.Unmarshal(data, &f); err != nil {
-			return FeedFetchResult{}, err
-		}
-		for _, it := range f.Channel.Items {
-			rawContent := it.Encoded
-			if rawContent == "" {
-				rawContent = it.Description
-			}
-			link := it.Link
-			if link == "" {
-				link = it.GUID
-			}
-			author, email := "", ""
-			if it.Author != "" {
-				author, email = parseRSSAuthor(it.Author)
-			}
-			if it.Creator != "" {
-				author = it.Creator
-			}
-			content := sanitizer.Sanitize(resolveRelativeURLs(rawContent, link))
-			result.Articles = append(result.Articles, Article{
-				Link:        link,
-				Title:       it.Title,
-				Author:      author,
-				AuthorEmail: email,
-				PubDate:     parseDate(it.PubDate),
-				Summary:     summarize(content, 220),
-				Content:     content,
-				FetchedAt:   now,
-			})
-		}
-		result.Title = f.Channel.Title
-		return result, nil
-
+		return parseRSSFeed, nil
 	case "feed":
-		var f atomXML
-		if err := xml.Unmarshal(data, &f); err != nil {
-			return FeedFetchResult{}, err
-		}
-		for _, e := range f.Entries {
-			link := e.ID
-			for _, l := range e.Links {
-				if l.Rel == "alternate" || l.Rel == "" {
-					link = l.Href
-					break
-				}
-			}
-			rawContent := e.Content
-			if rawContent == "" {
-				rawContent = e.Summary
-			}
-			published := e.Published
-			if published == "" {
-				published = e.Updated
-			}
-			content := sanitizer.Sanitize(resolveRelativeURLs(rawContent, link))
-			result.Articles = append(result.Articles, Article{
-				Link:        link,
-				Title:       e.Title,
-				Author:      e.Author.Name,
-				AuthorEmail: e.Author.Email,
-				PubDate:     parseDate(published),
-				Summary:     summarize(content, 220),
-				Content:     content,
-				FetchedAt:   now,
-			})
-		}
-		result.Title = f.Title
-		return result, nil
+		return parseAtomFeed, nil
 	}
-	return FeedFetchResult{}, fmt.Errorf("%s: unrecognized feed format <%s>", feedURL, root)
+	return nil, fmt.Errorf("unrecognized feed format <%s>", root)
 }
 
 type RefreshResult struct {
@@ -374,9 +213,6 @@ func RefreshAll(s *Store) []RefreshResult {
 	return results
 }
 
-// per-feed history cap
-const articlesPerFeedCap = 300
-
 // returns new-article count
 func RefreshFeed(s *Store, f Feed) (added int, err error) {
 	result, err := FetchFeed(f.URL, f.ETag, f.LastModified)
@@ -388,7 +224,9 @@ func RefreshFeed(s *Store, f Feed) (added int, err error) {
 		return 0, nil
 	}
 	if result.Title != "" && result.Title != f.Title && f.Title == f.URL {
-		_ = s.SetFeedTitle(f.ID, result.Title)
+		if err := s.SetFeedTitle(f.ID, result.Title); err != nil {
+			log.Printf("refresh %s: set feed title: %v", f.URL, err)
+		}
 	}
 	for _, a := range result.Articles {
 		if a.Link == "" {
@@ -407,7 +245,7 @@ func RefreshFeed(s *Store, f Feed) (added int, err error) {
 	if err := s.SetFeedCache(f.ID, result.ETag, result.LastModified); err != nil {
 		log.Printf("refresh %s: save cache validators: %v", f.URL, err)
 	}
-	if err := s.PruneArticles(f.ID, articlesPerFeedCap); err != nil {
+	if err := s.PruneToCap(f.ID); err != nil {
 		log.Printf("refresh %s: prune articles: %v", f.URL, err)
 	}
 	return added, nil

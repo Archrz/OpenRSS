@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/xml"
+	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 )
@@ -20,15 +20,6 @@ type opmlDoc struct {
 	Body struct {
 		Outlines []opmlOutline `xml:"outline"`
 	} `xml:"body"`
-}
-
-// includes nested outlines
-func LoadOPML(path string) ([]Feed, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	return ParseOPML(data)
 }
 
 // includes nested outlines
@@ -55,7 +46,6 @@ func ParseOPML(data []byte) ([]Feed, error) {
 	return feeds, nil
 }
 
-// Import OPML Data
 func ImportOPMLData(s *Store, data []byte) (int, error) {
 	feeds, err := ParseOPML(data)
 	if err != nil {
@@ -77,17 +67,10 @@ func ImportOPMLData(s *Store, data []byte) (int, error) {
 func ExportOPML(feeds []Feed) string {
 	var items strings.Builder
 	for _, f := range feeds {
-		items.WriteString(`    <outline type="rss" text="`)
-		items.WriteString(escXML(f.Title))
-		items.WriteString(`" title="`)
-		items.WriteString(escXML(f.Title))
-		items.WriteString(`" xmlUrl="`)
-		items.WriteString(escXML(f.URL))
-		items.WriteString(`"`)
+		fmt.Fprintf(&items, `    <outline type="rss" text="%s" title="%s" xmlUrl="%s"`,
+			escXML(f.Title), escXML(f.Title), escXML(f.URL))
 		if f.SiteURL != "" {
-			items.WriteString(` htmlUrl="`)
-			items.WriteString(escXML(f.SiteURL))
-			items.WriteString(`"`)
+			fmt.Fprintf(&items, ` htmlUrl="%s"`, escXML(f.SiteURL))
 		}
 		items.WriteString("/>\n")
 	}

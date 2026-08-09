@@ -206,7 +206,7 @@ button {
   background: currentColor;
 }
 
-/* ---- Main / article list ---- */
+/* Main / article list */
 
 #main { flex: 1; display: flex; overflow: hidden; position: relative; }
 
@@ -262,7 +262,7 @@ button {
 .article-row .meta { display: flex; gap: 6px; align-items: center; margin-top: 7px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 .article-row .meta .sep { color: var(--muted); }
 
-/* ---- Reader ---- */
+/* Reader */
 
 .reader {
   position: absolute; inset: 0;
@@ -313,7 +313,7 @@ button {
 .article-prose th { font-family: var(--font-mono); color: var(--text); background: #161616; }
 .article-prose tr:nth-child(even) td { background: #121212; }
 
-/* ---- Overlays / modals ---- */
+/* Overlays / modals */
 
 .overlay {
   position: fixed; inset: 0;
@@ -374,7 +374,7 @@ kbd { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 2px; paddin
 .search-preview .chips { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 12px; }
 .search-preview .preview-summary { font-size: 12px; color: var(--muted); line-height: 1.55; margin-top: 8px; }
 
-/* ---- Settings modal ---- */
+/* Settings modal */
 
 .settings-modal { width: 420px; }
 .modal-header { padding: 12px 16px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; }
@@ -387,7 +387,14 @@ kbd { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 2px; paddin
 .settings-section { padding: 14px 16px; border-bottom: 1px solid var(--border3); }
 .settings-section:last-child { border-bottom: none; }
 .section-label { font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
-.action-row { display: flex; gap: 8px; }
+.action-row { display: flex; gap: 8px; align-items: center; }
+.feeds-grid { display: grid; grid-template-columns: auto auto auto; column-gap: 8px; row-gap: 8px; align-items: center; justify-content: start; }
+.feeds-grid .section-label { margin-bottom: 0; }
+#article-cap-input {
+  width: 100px; background: #161616; border: 1px solid #242424; border-radius: 2px;
+  padding: 6px 9px; color: var(--text); font-size: 12px; line-height: 1.5;
+  font-family: var(--font-mono); outline: none;
+}
 .action-btn {
   background: #161616; border: 1px solid #242424; border-radius: 2px; padding: 6px 12px;
   color: var(--muted); font-size: 12px; font-family: var(--font-mono);
@@ -399,7 +406,7 @@ kbd { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 2px; paddin
 .action-btn.danger:hover { background: #1e1e1e; border-color: var(--danger); color: #ff6464; }
 .hint { font-size: 11px; color: var(--muted); font-family: var(--font-mono); margin-top: 8px; margin-bottom: 0; }
 
-/* ---- Icons ---- */
+/* Icons */
 
 /* lucide-static icons, MIT */
 :root {

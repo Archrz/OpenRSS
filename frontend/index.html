@@ -125,10 +125,21 @@
           <p id="opml-hint" class="hint">Import/export OPML 2.0</p>
         </div>
         <div class="settings-section">
-          <div class="section-label">Feeds</div>
-          <button id="btn-refresh-all-2" class="action-btn">
-            Refresh all feeds
-          </button>
+          <div class="feeds-grid">
+            <div class="section-label">Feeds</div>
+            <label for="article-cap-input" class="section-label">Max articles per feed</label>
+            <div></div>
+            <button id="btn-refresh-all-2" class="action-btn">
+              Refresh all feeds
+            </button>
+            <input
+              id="article-cap-input"
+              type="number"
+              min="0"
+              placeholder="Unlimited"
+            />
+            <button id="btn-save-cap" class="action-btn">Save</button>
+          </div>
         </div>
         <div class="settings-section">
           <div class="section-label">Storage</div>

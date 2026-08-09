@@ -15,53 +15,24 @@ type SearchResult struct {
 	MatchedKeywords []string `json:"matchedKeywords"`
 }
 
-var (
-	nonWordRE    = regexp.MustCompile(`[^a-z0-9\s-]`)
-	multiSpaceRE = regexp.MustCompile(`\s+`)
-)
+var normalizeRE = regexp.MustCompile(`[^a-z0-9\s-]+|\s+`)
 
-// "zero day" searches for zero day as a idea or concept
+// "zero day" searches for zero day as a phrase or word.
 func normalizeForSearch(s string) string {
-	s = nonWordRE.ReplaceAllString(strings.ToLower(s), " ")
-	return strings.TrimSpace(multiSpaceRE.ReplaceAllString(s, " "))
+	return strings.TrimSpace(normalizeRE.ReplaceAllString(strings.ToLower(s), " "))
 }
 
-func isSeparator(r rune) bool {
-	return r == ' ' || r == ',' || r == '\t' || r == '\n'
-}
+var keywordRE = regexp.MustCompile(`"([^"]+)"|([^\s,]+)`)
 
 // "quoted phrase" is one keyword, e.g. "zero day"
 func Keywords(query string) []string {
-	kws := []string{}
-	runes := []rune(query)
-	n := len(runes)
-	i := 0
-	for i < n {
-		for i < n && isSeparator(runes[i]) {
-			i++
+	var kws []string
+	for _, m := range keywordRE.FindAllStringSubmatch(query, -1) {
+		word := m[1]
+		if word == "" {
+			word = m[2]
 		}
-		if i >= n {
-			break
-		}
-		var word string
-		if runes[i] == '"' {
-			i++
-			start := i
-			for i < n && runes[i] != '"' {
-				i++
-			}
-			word = strings.TrimSpace(string(runes[start:i]))
-			if i < n {
-				i++ // skip closing quote
-			}
-		} else {
-			start := i
-			for i < n && !isSeparator(runes[i]) {
-				i++
-			}
-			word = string(runes[start:i])
-		}
-		word = strings.ToLower(word)
+		word = normalizeForSearch(word)
 		if len(word) > 1 {
 			kws = append(kws, word)
 		}
@@ -87,7 +58,7 @@ func SearchArticles(articles []Article, query string) []SearchResult {
 		if len(matchedKeywords) == 0 {
 			continue
 		}
-		a.Content = "" // keep search responses light; reader fetches content separately
+		a.Content = ""
 		results = append(results, SearchResult{
 			Article:         a,
 			Matched:         len(matchedKeywords),

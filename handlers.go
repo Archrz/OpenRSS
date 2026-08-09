@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -145,7 +144,6 @@ func articlesHandler(s *Store) http.HandlerFunc {
 	}
 }
 
-// raw HTML length, not word count
 const minFullContentLength = 1500
 
 func articleByIDHandler(s *Store) http.HandlerFunc {
@@ -161,7 +159,6 @@ func articleByIDHandler(s *Store) http.HandlerFunc {
 			return
 		}
 		if !a.Full && len(a.Content) >= minFullContentLength {
-			// already substantial, skip fetch
 			if err := s.MarkArticleFull(a.ID); err != nil {
 				log.Printf("mark article %d full: %v", a.ID, err)
 			} else {
@@ -171,21 +168,11 @@ func articleByIDHandler(s *Store) http.HandlerFunc {
 			if content, err := FetchFullArticle(a.Link); err != nil {
 				log.Printf("fetch full article %s: %v", a.Link, err)
 			} else {
-				content = cacheArticleImages(content)
 				if err := s.SetArticleContent(a.ID, content); err != nil {
 					log.Printf("save full article %s: %v", a.Link, err)
 				} else {
 					a.Content = content
 					a.Full = true
-				}
-			}
-		}
-		if strings.HasPrefix(a.AuthorAvatar, "http") {
-			if local, ok := cacheImage(a.AuthorAvatar); ok {
-				if err := s.SetArticleAuthorAvatar(a.ID, local); err != nil {
-					log.Printf("save author avatar for article %d: %v", a.ID, err)
-				} else {
-					a.AuthorAvatar = local
 				}
 			}
 		}
@@ -218,7 +205,7 @@ func searchHandler(s *Store) http.HandlerFunc {
 		from, _ := time.Parse("2006-01-02", r.URL.Query().Get("from"))
 		to, err := time.Parse("2006-01-02", r.URL.Query().Get("to"))
 		if err == nil {
-			to = to.Add(24 * time.Hour) // make the end date inclusive of that whole day
+			to = to.Add(24 * time.Hour)
 		}
 		articles = FilterByDateRange(articles, from, to)
 		writeJSON(w, SearchArticles(articles, q))
@@ -236,18 +223,39 @@ func statsHandler(s *Store) http.HandlerFunc {
 	}
 }
 
+func settingsHandler(s *Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			articleCap, err := s.GetArticleCap()
+			if err != nil {
+				jsonError(w, http.StatusInternalServerError, err)
+				return
+			}
+			writeJSON(w, map[string]int{"articleCap": articleCap})
+
+		case http.MethodPost:
+			var body struct {
+				ArticleCap int `json:"articleCap"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ArticleCap < 0 {
+				jsonError(w, http.StatusBadRequest, errors.New("invalid articleCap"))
+				return
+			}
+			if err := s.SetArticleCap(body.ArticleCap); err != nil {
+				jsonError(w, http.StatusInternalServerError, err)
+				return
+			}
+			writeJSON(w, map[string]bool{"ok": true})
+		}
+	}
+}
+
 func clearArticlesHandler(s *Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := s.ClearArticles(); err != nil {
 			jsonError(w, http.StatusInternalServerError, err)
 			return
-		}
-		if imageCacheDir != "" {
-			if err := os.RemoveAll(imageCacheDir); err != nil {
-				log.Printf("clear image cache: %v", err)
-			} else {
-				os.MkdirAll(imageCacheDir, 0o755)
-			}
 		}
 		writeJSON(w, map[string]bool{"ok": true})
 	}
@@ -275,7 +283,6 @@ func opmlImportHandler(s *Store) http.HandlerFunc {
 	}
 }
 
-// next to db, simpler than a save dialog
 func opmlExportHandler(s *Store, dbPath string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		feeds, err := s.ListFeeds()

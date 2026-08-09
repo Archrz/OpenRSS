@@ -34,5 +34,5 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: OpenRSS
+          name: OpenRSS-MacOS-arm64
           path: OpenRSS.zip

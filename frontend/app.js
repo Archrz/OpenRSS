@@ -332,29 +332,20 @@ async function runSearch() {
 }
 
 // mirrors Go's Keywords, "quoted phrase" is one keyword
+const keywordRE = /"([^"]+)"|([^\s,]+)/g;
 function keywordsOf(query) {
   const kws = [];
-  let i = 0;
-  const isSep = (c) => c === " " || c === "," || c === "\t" || c === "\n";
-  while (i < query.length) {
-    while (i < query.length && isSep(query[i])) i++;
-    if (i >= query.length) break;
-    let word;
-    if (query[i] === '"') {
-      i++;
-      const start = i;
-      while (i < query.length && query[i] !== '"') i++;
-      word = query.slice(start, i).trim();
-      if (i < query.length) i++;
-    } else {
-      const start = i;
-      while (i < query.length && !isSep(query[i])) i++;
-      word = query.slice(start, i);
-    }
-    word = word.toLowerCase();
+  for (const m of query.matchAll(keywordRE)) {
+    const word = (m[1] ?? m[2]).trim().toLowerCase();
     if (word.length > 1) kws.push(word);
   }
   return kws;
+}
+
+function chipsHtml(words, cls = "") {
+  return words
+    .map((k) => `<span class="chip${cls ? " " + cls : ""}">${escapeHtml(k)}</span>`)
+    .join("");
 }
 
 function renderSearch() {
@@ -367,7 +358,7 @@ function renderSearch() {
   const kwBox = document.getElementById("search-keywords");
   kwBox.classList.toggle("hidden", keywords.length === 0);
   kwBox.innerHTML =
-    keywords.map((k) => `<span class="chip">${escapeHtml(k)}</span>`).join("") +
+    chipsHtml(keywords) +
     (keywords.length
       ? `<span class="keyword-count">${keywords.length} keyword${keywords.length !== 1 ? "s" : ""}</span>`
       : "");
@@ -404,12 +395,8 @@ function renderSearch() {
   preview.classList.toggle("hidden", !sel);
   if (sel) {
     const missing = keywords.filter((k) => !sel.matchedKeywords.includes(k));
-    const matchedChips = sel.matchedKeywords
-      .map((k) => `<span class="chip">${escapeHtml(k)}</span>`)
-      .join("");
-    const missingChips = missing
-      .map((k) => `<span class="chip missing">${escapeHtml(k)}</span>`)
-      .join("");
+    const matchedChips = chipsHtml(sel.matchedKeywords);
+    const missingChips = chipsHtml(missing, "missing");
     preview.innerHTML = `
       <div style="text-align:center">${pieSVG(sel.matched, sel.total, { size: 120, donut: true })}</div>
       <div class="pie-caption">${sel.matched}/${sel.total} keywords</div>
@@ -437,6 +424,8 @@ async function openSettings() {
   const { feeds, articles } = await api("/api/stats");
   document.getElementById("stat-feeds").textContent = feeds;
   document.getElementById("stat-articles").textContent = articles;
+  const { articleCap } = await api("/api/settings");
+  document.getElementById("article-cap-input").value = articleCap || "";
 }
 function closeSettings() {
   document.getElementById("settings-overlay").classList.add("hidden");
@@ -470,6 +459,17 @@ function closeTopOverlay() {
 }
 
 function init() {
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a[href]");
+    if (!a || a.href.startsWith(window.location.origin)) return;
+    e.preventDefault();
+    if (window.openExternal) {
+      window.openExternal(a.href);
+    } else {
+      window.open(a.href, "_blank");
+    }
+  });
+
   document.getElementById("btn-search").addEventListener("click", openSearch);
   closeOnBackdropClick("search-overlay", closeSearch);
   document
@@ -508,7 +508,6 @@ function init() {
       const row = e.target.closest("[data-idx]");
       if (!row) return;
       const idx = Number(row.dataset.idx);
-      // re-render only on change, or clicks mid-hover never fire
       if (state.searchSelectedIdx === idx) return;
       state.searchSelectedIdx = idx;
       renderSearch();
@@ -570,6 +569,15 @@ function init() {
     const r = await api("/api/opml/export", { method: "POST" });
     document.getElementById("opml-hint").textContent = `Exported to ${r.path}`;
   });
+  document.getElementById("btn-save-cap").addEventListener("click", async () => {
+    const articleCap = Number(document.getElementById("article-cap-input").value) || 0;
+    await api("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ articleCap }),
+    });
+  });
+
   document
     .getElementById("btn-clear-cache")
     .addEventListener("click", async () => {

@@ -65,6 +65,11 @@ CREATE TABLE IF NOT EXISTS articles (
 );
 CREATE INDEX IF NOT EXISTS idx_articles_feed ON articles(feed_id);
 CREATE INDEX IF NOT EXISTS idx_articles_pubdate ON articles(pub_date);
+CREATE TABLE IF NOT EXISTS settings (
+	id          INTEGER PRIMARY KEY CHECK (id = 1),
+	article_cap INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO settings (id, article_cap) VALUES (1, 0);
 `
 
 // single connection avoids SQLITE_BUSY
@@ -157,14 +162,38 @@ func (s *Store) RemoveFeed(id int64) error {
 	return err
 }
 
-// keeps newest per feed
+// keeps newest per feed; keep <= 0 means unlimited (no-op)
 func (s *Store) PruneArticles(feedID int64, keep int) error {
+	if keep <= 0 {
+		return nil
+	}
 	_, err := s.db.Exec(
 		`DELETE FROM articles WHERE feed_id = ? AND id NOT IN (
 			SELECT id FROM articles WHERE feed_id = ? ORDER BY pub_date DESC, fetched_at DESC LIMIT ?
 		)`, feedID, feedID, keep,
 	)
 	return err
+}
+
+// 0 means unlimited
+func (s *Store) GetArticleCap() (int, error) {
+	var articleCap int
+	err := s.db.QueryRow(`SELECT article_cap FROM settings WHERE id = 1`).Scan(&articleCap)
+	return articleCap, err
+}
+
+func (s *Store) SetArticleCap(articleCap int) error {
+	_, err := s.db.Exec(`UPDATE settings SET article_cap = ? WHERE id = 1`, articleCap)
+	return err
+}
+
+// prunes a feed's articles down to the currently configured cap
+func (s *Store) PruneToCap(feedID int64) error {
+	articleCap, err := s.GetArticleCap()
+	if err != nil {
+		return err
+	}
+	return s.PruneArticles(feedID, articleCap)
 }
 
 // no-op on duplicate link
@@ -264,11 +293,6 @@ func (s *Store) SetArticleContent(id int64, content string) error {
 
 func (s *Store) MarkArticleFull(id int64) error {
 	_, err := s.db.Exec(`UPDATE articles SET full = 1 WHERE id = ?`, id)
-	return err
-}
-
-func (s *Store) SetArticleAuthorAvatar(id int64, avatar string) error {
-	_, err := s.db.Exec(`UPDATE articles SET author_avatar = ? WHERE id = ?`, avatar, id)
 	return err
 }
 

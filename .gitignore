@@ -12,6 +12,6 @@
 /imagecache/
 
 # Test tools
-openrss_test.go
 run.sh
 shell.nix
+*_test.go

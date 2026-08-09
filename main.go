@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,17 +31,7 @@ func defaultDBPath() string {
 }
 
 func main() {
-	// wayland stuff
-	if runtime.GOOS == "linux" && os.Getenv("GDK_BACKEND") == "" {
-		os.Setenv("GDK_BACKEND", "x11")
-	}
-	// gpu linux stuff
-	if runtime.GOOS == "linux" && os.Getenv("WEBKIT_DISABLE_DMABUF_RENDERER") == "" {
-		os.Setenv("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
-	}
-
 	dbPath := flag.String("db", defaultDBPath(), "sqlite database path")
-	opmlPath := flag.String("opml", "", "OPML file to import feeds from on startup")
 	refresh := flag.Duration("refresh", 30*time.Minute, "feed refresh interval")
 	flag.Parse()
 
@@ -51,25 +43,6 @@ func main() {
 		log.Fatalf("open store: %v", err)
 	}
 	defer store.Close()
-
-	imageCacheDir = filepath.Join(filepath.Dir(*dbPath), "imagecache")
-	if err := os.MkdirAll(imageCacheDir, 0o755); err != nil {
-		log.Printf("create image cache dir: %v (image caching disabled)", err)
-		imageCacheDir = ""
-	}
-
-	if *opmlPath != "" {
-		feeds, err := LoadOPML(*opmlPath)
-		if err != nil {
-			log.Fatalf("load opml: %v", err)
-		}
-		for _, f := range feeds {
-			if _, err := store.AddFeed(f.URL, f.Title, f.SiteURL); err != nil {
-				log.Printf("add feed %s: %v", f.URL, err)
-			}
-		}
-		log.Printf("imported %d feeds from %s", len(feeds), *opmlPath)
-	}
 
 	go func() {
 		RefreshAll(store)
@@ -90,9 +63,10 @@ func main() {
 	mux.HandleFunc("POST /api/articles/clear", clearArticlesHandler(store))
 	mux.HandleFunc("GET /api/search", searchHandler(store))
 	mux.HandleFunc("GET /api/stats", statsHandler(store))
+	mux.HandleFunc("GET /api/settings", settingsHandler(store))
+	mux.HandleFunc("POST /api/settings", settingsHandler(store))
 	mux.HandleFunc("POST /api/opml/import", opmlImportHandler(store))
 	mux.HandleFunc("POST /api/opml/export", opmlExportHandler(store, *dbPath))
-	mux.HandleFunc("GET /api/images/{hash}", imagesHandler())
 	mux.Handle("/", staticHandler())
 
 	// loopback only, backs the window below
@@ -108,7 +82,21 @@ func main() {
 	w.SetSize(1100, 800, webview.HintNone)
 	w.Navigate("http://" + ln.Addr().String())
 
-	// macOS native file dialog for OPML import
+	w.Bind("openExternal", func(rawURL string) error {
+		u, err := url.Parse(rawURL)
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+			return fmt.Errorf("refusing to open non-http(s) url")
+		}
+		switch runtime.GOOS {
+		case "darwin":
+			return exec.Command("open", rawURL).Start()
+		case "linux":
+			return exec.Command("xdg-open", rawURL).Start()
+		}
+		return fmt.Errorf("unsupported platform: %s", runtime.GOOS)
+	})
+
+	// macOS OPML import
 	if runtime.GOOS == "darwin" {
 		w.Bind("nativeImportOPML", func() (map[string]any, error) {
 			out, err := exec.Command("osascript", "-e",
