@@ -30,8 +30,10 @@ jobs:
           cp openrss "$bundle/MacOS/openrss"
           cp packaging/macos/Info.plist "$bundle/Info.plist"
           codesign --force --deep -s - OpenRSS.app
+          mkdir dist
+          mv OpenRSS.app dist/
 
       - uses: actions/upload-artifact@v4
         with:
           name: OpenRSS-MacOS-arm64
-          path: OpenRSS.app
+          path: dist
