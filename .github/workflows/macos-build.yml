@@ -1,0 +1,38 @@
+name: macOS build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: 1
+          GOOS: darwin
+          GOARCH: arm64
+        run: go build -o openrss .
+
+      - name: Assemble .app bundle
+        run: |
+          bundle="OpenRSS.app/Contents"
+          mkdir -p "$bundle/MacOS"
+          cp openrss "$bundle/MacOS/openrss"
+          cp packaging/macos/Info.plist "$bundle/Info.plist"
+          codesign --force --deep -s - OpenRSS.app
+          ditto -c -k --sequesterRsrc --keepParent OpenRSS.app OpenRSS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenRSS
+          path: OpenRSS.zip

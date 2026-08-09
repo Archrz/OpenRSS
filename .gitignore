@@ -1,0 +1,17 @@
+# Macos
+.DS_Store
+
+# Build output
+/openrss
+
+# Runtime data
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+/imagecache/
+
+# Test tools
+openrss_test.go
+run.sh
+shell.nix
