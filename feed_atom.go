@@ -59,15 +59,14 @@ func parseAtomFeed(data []byte, now time.Time) (title string, articles []Article
 		link := atomLink(e)
 		content := sanitizer.Sanitize(resolveRelativeURLs(atomContent(e), link))
 		articles = append(articles, Article{
-			Link:         link,
-			Title:        e.Title,
-			Author:       e.Author.Name,
-			AuthorEmail:  e.Author.Email,
-			AuthorAvatar: gravatarURL(e.Author.Email),
-			PubDate:      parseDate(atomPublished(e)),
-			Summary:      summarize(content, 220),
-			Content:      content,
-			FetchedAt:    now,
+			Link:        link,
+			Title:       e.Title,
+			Author:      e.Author.Name,
+			AuthorEmail: e.Author.Email,
+			PubDate:     parseDate(atomPublished(e)),
+			Summary:     summarize(content, 220),
+			Content:     content,
+			FetchedAt:   now,
 		})
 	}
 	return f.Title, articles, nil

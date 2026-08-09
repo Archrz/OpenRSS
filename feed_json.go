@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"net/url"
 	"time"
 )
 
@@ -17,12 +16,10 @@ type jsonFeedItem struct {
 	DatePublished string `json:"date_published"`
 	DateModified  string `json:"date_modified"`
 	Authors       []struct {
-		Name   string `json:"name"`
-		Avatar string `json:"avatar"`
+		Name string `json:"name"`
 	} `json:"authors"`
 	Author struct {
-		Name   string `json:"name"`
-		Avatar string `json:"avatar"`
+		Name string `json:"name"`
 	} `json:"author"`
 }
 
@@ -48,12 +45,11 @@ func jsonLink(it jsonFeedItem) string {
 	return it.ID
 }
 
-func jsonAuthor(it jsonFeedItem) (name, avatar string) {
-	name, avatar = it.Author.Name, it.Author.Avatar
+func jsonAuthor(it jsonFeedItem) string {
 	if len(it.Authors) > 0 && it.Authors[0].Name != "" {
-		name, avatar = it.Authors[0].Name, it.Authors[0].Avatar
+		return it.Authors[0].Name
 	}
-	return name, avatar
+	return it.Author.Name
 }
 
 func jsonPublished(it jsonFeedItem) string {
@@ -70,20 +66,15 @@ func parseJSONFeed(data []byte, fetchedAt time.Time) (title string, articles []A
 	}
 	for _, it := range f.Items {
 		link := jsonLink(it)
-		author, avatar := jsonAuthor(it)
-		if base, err := url.Parse(link); err == nil && base.IsAbs() {
-			avatar = resolveURL(avatar, base)
-		}
 		content := sanitizer.Sanitize(resolveRelativeURLs(jsonContent(it), link))
 		articles = append(articles, Article{
-			Link:         link,
-			Title:        it.Title,
-			Author:       author,
-			AuthorAvatar: avatar,
-			PubDate:      parseDate(jsonPublished(it)),
-			Summary:      summarize(content, 220),
-			Content:      content,
-			FetchedAt:    fetchedAt,
+			Link:      link,
+			Title:     it.Title,
+			Author:    jsonAuthor(it),
+			PubDate:   parseDate(jsonPublished(it)),
+			Summary:   summarize(content, 220),
+			Content:   content,
+			FetchedAt: fetchedAt,
 		})
 	}
 	return f.Title, articles, nil

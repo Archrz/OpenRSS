@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/xml"
 	"fmt"
 	"html"
@@ -12,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,19 +34,25 @@ func parseDate(s string) time.Time {
 	return time.Time{}
 }
 
-// RSS/Atom carry no avatar field, Gravatar is used
-func gravatarURL(email string) string {
-	email = strings.ToLower(strings.TrimSpace(email))
-	if email == "" {
-		return ""
-	}
-	sum := md5.Sum([]byte(email))
-	return "https://www.gravatar.com/avatar/" + hex.EncodeToString(sum[:]) + "?d=mp&s=128"
-}
-
 var sanitizer = bluemonday.UGCPolicy().AllowElements(
 	"table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "colgroup", "col",
 )
+
+// remove small avatar icons of author.
+const maxIconPx = 150
+
+func isIconSized(attrs []xhtml.Attribute) bool {
+	var w, h int
+	for _, a := range attrs {
+		switch a.Key {
+		case "width":
+			w, _ = strconv.Atoi(a.Val)
+		case "height":
+			h, _ = strconv.Atoi(a.Val)
+		}
+	}
+	return w > 0 && w <= maxIconPx && h > 0 && h <= maxIconPx
+}
 
 func resolveURL(rawURL string, base *url.URL) string {
 	ref, err := url.Parse(rawURL)
@@ -71,6 +76,9 @@ func resolveRelativeURLs(rawHTML, articleLink string) string {
 		}
 		tok := z.Token()
 		if tok.Type == xhtml.StartTagToken || tok.Type == xhtml.SelfClosingTagToken {
+			if tok.Data == "img" && isIconSized(tok.Attr) {
+				continue
+			}
 			for i, a := range tok.Attr {
 				if a.Key == "src" || a.Key == "href" {
 					tok.Attr[i].Val = resolveURL(a.Val, base)
@@ -193,7 +201,7 @@ func FetchFullArticle(link string) (string, error) {
 	if err := article.RenderHTML(&buf); err != nil {
 		return "", err
 	}
-	return sanitizer.Sanitize(buf.String()), nil
+	return sanitizer.Sanitize(resolveRelativeURLs(buf.String(), link)), nil
 }
 
 func RefreshAll(s *Store) []RefreshResult {

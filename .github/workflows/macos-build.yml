@@ -30,9 +30,8 @@ jobs:
           cp openrss "$bundle/MacOS/openrss"
           cp packaging/macos/Info.plist "$bundle/Info.plist"
           codesign --force --deep -s - OpenRSS.app
-          ditto -c -k --sequesterRsrc --keepParent OpenRSS.app OpenRSS.zip
 
       - uses: actions/upload-artifact@v4
         with:
           name: OpenRSS-MacOS-arm64
-          path: OpenRSS.zip
+          path: OpenRSS.app

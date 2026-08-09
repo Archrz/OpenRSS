@@ -76,15 +76,14 @@ func parseRSSFeed(data []byte, now time.Time) (title string, articles []Article,
 		author, email := rssAuthor(it)
 		content := sanitizer.Sanitize(resolveRelativeURLs(rssContent(it), link))
 		articles = append(articles, Article{
-			Link:         link,
-			Title:        it.Title,
-			Author:       author,
-			AuthorEmail:  email,
-			AuthorAvatar: gravatarURL(email),
-			PubDate:      parseDate(it.PubDate),
-			Summary:      summarize(content, 220),
-			Content:      content,
-			FetchedAt:    now,
+			Link:        link,
+			Title:       it.Title,
+			Author:      author,
+			AuthorEmail: email,
+			PubDate:     parseDate(it.PubDate),
+			Summary:     summarize(content, 220),
+			Content:     content,
+			FetchedAt:   now,
 		})
 	}
 	return f.Channel.Title, articles, nil

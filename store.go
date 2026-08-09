@@ -18,20 +18,19 @@ type Feed struct {
 }
 
 type Article struct {
-	ID           int64     `json:"id"`
-	FeedID       int64     `json:"feedId"`
-	FeedTitle    string    `json:"feedTitle"`
-	Link         string    `json:"link"`
-	Title        string    `json:"title"`
-	Author       string    `json:"author,omitempty"`
-	AuthorEmail  string    `json:"authorEmail,omitempty"`
-	AuthorAvatar string    `json:"authorAvatar,omitempty"`
-	PubDate      time.Time `json:"pubDate,omitempty"`
-	Summary      string    `json:"summary"`
-	Content      string    `json:"content,omitempty"`
-	FetchedAt    time.Time `json:"fetchedAt"`
-	Read         bool      `json:"read"`
-	Full         bool      `json:"-"`
+	ID          int64     `json:"id"`
+	FeedID      int64     `json:"feedId"`
+	FeedTitle   string    `json:"feedTitle"`
+	Link        string    `json:"link"`
+	Title       string    `json:"title"`
+	Author      string    `json:"author,omitempty"`
+	AuthorEmail string    `json:"authorEmail,omitempty"`
+	PubDate     time.Time `json:"pubDate,omitempty"`
+	Summary     string    `json:"summary"`
+	Content     string    `json:"content,omitempty"`
+	FetchedAt   time.Time `json:"fetchedAt"`
+	Read        bool      `json:"read"`
+	Full        bool      `json:"-"`
 }
 
 type Store struct {
@@ -200,10 +199,10 @@ func (s *Store) PruneToCap(feedID int64) error {
 func (s *Store) InsertArticle(a Article) (inserted bool, err error) {
 	res, err := s.db.Exec(
 		`INSERT OR IGNORE INTO articles(
-			feed_id, link, title, author, author_email, author_avatar,
+			feed_id, link, title, author, author_email,
 			pub_date, summary, content, fetched_at
-		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.FeedID, a.Link, a.Title, a.Author, a.AuthorEmail, a.AuthorAvatar,
+		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.FeedID, a.Link, a.Title, a.Author, a.AuthorEmail,
 		formatTime(a.PubDate), a.Summary, a.Content, formatTime(a.FetchedAt),
 	)
 	if err != nil {
@@ -261,7 +260,7 @@ func (s *Store) ListArticles(feedID int64) ([]Article, error) {
 // marks read
 func (s *Store) GetArticle(id int64) (Article, error) {
 	row := s.db.QueryRow(
-		`SELECT a.id, a.feed_id, f.title, a.link, a.title, a.author, a.author_email, a.author_avatar,
+		`SELECT a.id, a.feed_id, f.title, a.link, a.title, a.author, a.author_email,
 			a.pub_date, a.summary, a.content, a.fetched_at, a.read, a.full
 		 FROM articles a JOIN feeds f ON f.id = a.feed_id WHERE a.id = ?`, id,
 	)
@@ -269,7 +268,7 @@ func (s *Store) GetArticle(id int64) (Article, error) {
 	var pubDate, fetchedAt string
 	err := row.Scan(
 		&a.ID, &a.FeedID, &a.FeedTitle, &a.Link, &a.Title, &a.Author,
-		&a.AuthorEmail, &a.AuthorAvatar, &pubDate, &a.Summary, &a.Content,
+		&a.AuthorEmail, &pubDate, &a.Summary, &a.Content,
 		&fetchedAt, &a.Read, &a.Full,
 	)
 	if err != nil {

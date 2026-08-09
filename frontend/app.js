@@ -284,7 +284,6 @@ function renderReader() {
         a.author
           ? `
         <span class="author">
-          ${a.authorAvatar ? `<img class="author-avatar" src="${escapeHtml(a.authorAvatar)}" alt="">` : ""}
           <span>${escapeHtml(a.author)}</span>
           ${a.authorEmail ? `<span class="author-email">${escapeHtml(a.authorEmail)}</span>` : ""}
         </span>
@@ -624,6 +623,17 @@ function init() {
   document
     .getElementById("reader-close")
     .addEventListener("click", closeReader);
+  document
+    .getElementById("reader-open-original")
+    .addEventListener("click", () => {
+      const link = state.openArticle?.link;
+      if (!link) return;
+      if (window.openExternal) {
+        window.openExternal(link);
+      } else {
+        window.open(link, "_blank");
+      }
+    });
 
   const addInput = document.getElementById("add-feed-input");
   const addBtn = document.getElementById("add-feed-btn");
