@@ -1,10 +1,11 @@
 # OpenRSS
 
+> [!Warning]
+> OpenRSS is a beta software that is actively being developed, USE AT YOUR OWN RISK.
+
 This is a project that is built to read through multiple articales and search across all of them, completely locally.
 
 OpenRSS was built on NixOS and is working there, and it has a compiled version for macOS 26 for Apple Silicon, but macOS is still being tested.
-
-OpenRSS is a beta software that is actively being developed, USE AT YOUR OWN RISK.
 
 ## features
 
