@@ -43,10 +43,8 @@ func matchColor(ratio float64) template.CSS {
 	}
 }
 
-// one shared shape for every icon-only button, instead of typing the
-// <button class="icon-btn" ...> wrapper out by hand at each call site
-func iconBtn(id, title, glyph string) template.HTML {
-	return template.HTML(fmt.Sprintf(`<button id="%s" class="icon-btn" title="%s">%s</button>`, id, title, glyph))
+func iconBtn(id, title, icon string) template.HTML {
+	return template.HTML(fmt.Sprintf(`<button id="%s" class="icon-btn" data-icon="%s" title="%s"></button>`, id, icon, title))
 }
 
 // one shared shape for a settings stat tile
@@ -77,8 +75,8 @@ const templates = `
 <div class="feed-item{{if .Active}} active{{end}}" data-feed-id="{{.ID}}">
 	<span class="feed-name">{{.Title}}</span>
 	{{if gt .Unread 0}}<span class="badge">{{if gt .Unread 99}}99+{{else}}{{.Unread}}{{end}}</span>{{end}}
-	{{if .ID}}<button class="icon-btn refresh-btn" data-action="refresh" title="Refresh">&#8635;</button>
-	<button class="icon-btn remove-btn" data-action="remove" title="Remove feed">&#10005;</button>{{end}}
+	{{if .ID}}<button class="icon-btn refresh-btn" data-icon="refresh" data-action="refresh" title="Refresh"></button>
+	<button class="icon-btn remove-btn" data-icon="x" data-action="remove" title="Remove feed"></button>{{end}}
 </div>
 {{end}}
 
@@ -132,16 +130,16 @@ const templates = `
 {{define "sidebar"}}
 <aside id="sidebar">
 	<div class="sidebar-header">
-		{{iconBtn "btn-search" "Search (/)" "&#128269;&#65038;"}}
+		{{iconBtn "btn-search" "Search (/)" "search"}}
 		<div class="sidebar-header-actions">
-			{{iconBtn "btn-refresh-all" "Refresh all" "&#8635;"}}
-			{{iconBtn "btn-settings" "Settings" "&#9881;&#65038;"}}
+			{{iconBtn "btn-refresh-all" "Refresh all" "refresh"}}
+			{{iconBtn "btn-settings" "Settings" "gear"}}
 		</div>
 	</div>
 	<div id="feed-list" class="scroll-hidden feed-list">{{template "feedList" .Feeds}}</div>
 	<div class="add-feed">
 		<input id="add-feed-input" placeholder="Add feed URL&hellip;" autocomplete="off" />
-		<button id="add-feed-btn" title="Add feed" aria-label="Add feed">+</button>
+		<button id="add-feed-btn" data-icon="plus" title="Add feed" aria-label="Add feed"></button>
 	</div>
 </aside>
 {{end}}
@@ -160,9 +158,9 @@ const templates = `
 {{define "readerPanel"}}
 <div id="reader" class="reader">
 	<div class="reader-header">
-		{{iconBtn "reader-close" "Close (Esc)" "&#8592;"}}
+		{{iconBtn "reader-close" "Close (Esc)" "chevron"}}
 		<span id="reader-feed-title"></span>
-		<a id="reader-open-original" class="icon-btn" title="Open original article" target="_blank" rel="noopener">&#8599;</a>
+		<a id="reader-open-original" class="icon-btn" data-icon="external" title="Open original article" target="_blank" rel="noopener"></a>
 	</div>
 	<div id="reader-content" class="scroll-hidden"></div>
 </div>
@@ -171,7 +169,7 @@ const templates = `
 {{define "searchDialog"}}
 <dialog id="search-overlay" class="modal-dialog search-modal">
 	<div class="search-bar">
-		<span class="icon">&#128269;&#65038;</span>
+		<span class="icon" data-icon="search"></span>
 		<input id="search-input" placeholder='Search keywords or "exact phrases"' autocomplete="off" />
 		<span id="search-count" class="dim-label"></span>
 		<kbd>Esc</kbd>
@@ -186,7 +184,7 @@ const templates = `
 
 {{define "settingsDialog"}}
 <dialog id="settings-overlay" class="modal-dialog settings-modal">
-	<div class="modal-header"><span>Settings</span>{{iconBtn "settings-close" "" "&#10005;"}}</div>
+	<div class="modal-header"><span>Settings</span>{{iconBtn "settings-close" "" "x"}}</div>
 	<div class="stats-row">{{statTile "stat-feeds" "Feeds"}}{{statTile "stat-articles" "Articles cached"}}</div>
 	<div class="settings-section">
 		<div class="section-label">OPML</div>

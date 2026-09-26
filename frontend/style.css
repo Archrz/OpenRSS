@@ -9,6 +9,14 @@
   --danger: #e05252;
   --warn: #f0a500;
   --input-bg: #161616;
+
+  --icon-search: url("/icons/search.png");
+  --icon-refresh: url("/icons/refresh.png");
+  --icon-gear: url("/icons/gear.png");
+  --icon-x: url("/icons/x.png");
+  --icon-chevron: url("/icons/chevron.png");
+  --icon-plus: url("/icons/plus.png");
+  --icon-external: url("/icons/external.png");
 }
 
 * {
@@ -92,13 +100,43 @@ input {
 }
 
 .icon-btn {
-  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   border-radius: 3px;
   color: var(--muted);
 }
 
-.sidebar-header .icon-btn {
-  font-size: 20px;
+.icon-btn::before, .icon::before, .add-feed button::before {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  background: currentColor;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+}
+
+[data-icon="search"]::before { -webkit-mask-image: var(--icon-search); mask-image: var(--icon-search); }
+[data-icon="refresh"]::before { -webkit-mask-image: var(--icon-refresh); mask-image: var(--icon-refresh); }
+[data-icon="gear"]::before { -webkit-mask-image: var(--icon-gear); mask-image: var(--icon-gear); }
+[data-icon="x"]::before { -webkit-mask-image: var(--icon-x); mask-image: var(--icon-x); }
+[data-icon="chevron"]::before { -webkit-mask-image: var(--icon-chevron); mask-image: var(--icon-chevron); }
+[data-icon="plus"]::before { -webkit-mask-image: var(--icon-plus); mask-image: var(--icon-plus); }
+[data-icon="external"]::before { -webkit-mask-image: var(--icon-external); mask-image: var(--icon-external); }
+
+.icon-btn.spin::before {
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .icon-btn:hover,
@@ -180,6 +218,9 @@ input {
   color: #000;
   border-radius: 3px;
   padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .add-feed button:disabled {
