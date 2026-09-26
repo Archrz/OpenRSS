@@ -1,8 +1,10 @@
-package main
+package feed
 
 import (
 	"encoding/json"
 	"time"
+
+	"openrss/store"
 )
 
 // JSON Feed 1.1 (jsonfeed.org).
@@ -59,23 +61,14 @@ func jsonPublished(it jsonFeedItem) string {
 	return it.DateModified
 }
 
-func parseJSONFeed(data []byte, fetchedAt time.Time) (title string, articles []Article, err error) {
+func parseJSONFeed(data []byte, fetchedAt time.Time) (title string, articles []store.Article, err error) {
 	var f jsonFeed
 	if err := json.Unmarshal(data, &f); err != nil {
 		return "", nil, err
 	}
 	for _, it := range f.Items {
 		link := jsonLink(it)
-		content := sanitizer.Sanitize(resolveRelativeURLs(jsonContent(it), link))
-		articles = append(articles, Article{
-			Link:      link,
-			Title:     it.Title,
-			Author:    jsonAuthor(it),
-			PubDate:   parseDate(jsonPublished(it)),
-			Summary:   summarize(content, 220),
-			Content:   content,
-			FetchedAt: fetchedAt,
-		})
+		articles = append(articles, buildArticle(link, it.Title, jsonAuthor(it), "", jsonPublished(it), jsonContent(it), fetchedAt))
 	}
 	return f.Title, articles, nil
 }

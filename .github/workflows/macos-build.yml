@@ -26,9 +26,10 @@ jobs:
       - name: Assemble .app bundle
         run: |
           bundle="OpenRSS.app/Contents"
-          mkdir -p "$bundle/MacOS"
+          mkdir -p "$bundle/MacOS" "$bundle/Resources"
           cp openrss "$bundle/MacOS/openrss"
           cp packaging/macos/Info.plist "$bundle/Info.plist"
+          cp packaging/macos/AppIcon.icns "$bundle/Resources/AppIcon.icns"
           codesign --force --deep -s - OpenRSS.app
           mkdir dist
           mv OpenRSS.app dist/

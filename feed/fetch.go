@@ -1,4 +1,4 @@
-package main
+package feed
 
 import (
 	"bytes"
@@ -17,6 +17,8 @@ import (
 	readability "codeberg.org/readeck/go-readability/v2"
 	"github.com/microcosm-cc/bluemonday"
 	xhtml "golang.org/x/net/html"
+
+	"openrss/store"
 )
 
 var dateLayouts = []string{
@@ -90,6 +92,8 @@ func resolveRelativeURLs(rawHTML, articleLink string) string {
 	return out.String()
 }
 
+const userAgent = "OpenRSS/1.0 (RSS reader)"
+
 // one hung feed shouldn't stall the rest
 var httpClient = &http.Client{Timeout: 20 * time.Second}
 
@@ -112,9 +116,24 @@ func summarize(rawHTML string, max int) string {
 	return text
 }
 
+// shared by the three format parsers: sanitize, summarize, resolve links
+func buildArticle(link, title, author, email, pubDate, rawContent string, now time.Time) store.Article {
+	content := sanitizer.Sanitize(resolveRelativeURLs(rawContent, link))
+	return store.Article{
+		Link:        link,
+		Title:       title,
+		Author:      author,
+		AuthorEmail: email,
+		PubDate:     parseDate(pubDate),
+		Summary:     summarize(content, 220),
+		Content:     content,
+		FetchedAt:   now,
+	}
+}
+
 type FeedFetchResult struct {
 	Title        string
-	Articles     []Article
+	Articles     []store.Article
 	ETag         string
 	LastModified string
 	NotModified  bool
@@ -126,7 +145,7 @@ func FetchFeed(feedURL, etag, lastModified string) (FeedFetchResult, error) {
 	if err != nil {
 		return FeedFetchResult{}, err
 	}
-	req.Header.Set("User-Agent", "OpenRSS/1.0 (RSS reader)")
+	req.Header.Set("User-Agent", userAgent)
 	if etag != "" {
 		req.Header.Set("If-None-Match", etag)
 	}
@@ -166,7 +185,7 @@ func FetchFeed(feedURL, etag, lastModified string) (FeedFetchResult, error) {
 }
 
 // picks the right format parser
-func feedParser(data []byte) (func([]byte, time.Time) (string, []Article, error), error) {
+func feedParser(data []byte) (func([]byte, time.Time) (string, []store.Article, error), error) {
 	if trimmed := bytes.TrimSpace(data); len(trimmed) > 0 && trimmed[0] == '{' {
 		return parseJSONFeed, nil
 	}
@@ -191,8 +210,8 @@ type RefreshResult struct {
 
 // readability-extracts the live page
 func FetchFullArticle(link string) (string, error) {
-	article, err := readability.FromURL(link, 20*time.Second, func(r *http.Request) {
-		r.Header.Set("User-Agent", "OpenRSS/1.0 (RSS reader)")
+	article, err := readability.FromURL(link, httpClient.Timeout, func(r *http.Request) {
+		r.Header.Set("User-Agent", userAgent)
 	})
 	if err != nil {
 		return "", err
@@ -204,7 +223,7 @@ func FetchFullArticle(link string) (string, error) {
 	return sanitizer.Sanitize(resolveRelativeURLs(buf.String(), link)), nil
 }
 
-func RefreshAll(s *Store) []RefreshResult {
+func RefreshAll(s *store.Store) []RefreshResult {
 	feeds, err := s.ListFeeds()
 	if err != nil {
 		log.Printf("refresh: list feeds: %v", err)
@@ -222,7 +241,7 @@ func RefreshAll(s *Store) []RefreshResult {
 }
 
 // returns new-article count
-func RefreshFeed(s *Store, f Feed) (added int, err error) {
+func RefreshFeed(s *store.Store, f store.Feed) (added int, err error) {
 	result, err := FetchFeed(f.URL, f.ETag, f.LastModified)
 	if err != nil {
 		log.Printf("refresh %s: %v", f.URL, err)

@@ -15,6 +15,9 @@ import (
 	"time"
 
 	webview "github.com/webview/webview_go"
+
+	"openrss/feed"
+	"openrss/store"
 )
 
 // stable path regardless of cwd
@@ -38,36 +41,37 @@ func main() {
 	if err := os.MkdirAll(filepath.Dir(*dbPath), 0o755); err != nil {
 		log.Fatalf("create db directory: %v", err)
 	}
-	store, err := OpenStore(*dbPath)
+	st, err := store.OpenStore(*dbPath)
 	if err != nil {
 		log.Fatalf("open store: %v", err)
 	}
-	defer store.Close()
+	defer st.Close()
 
 	go func() {
-		RefreshAll(store)
+		feed.RefreshAll(st)
 		for range time.Tick(*refresh) {
-			RefreshAll(store)
+			feed.RefreshAll(st)
 		}
 	}()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/feeds", feedsHandler(store))
-	mux.HandleFunc("POST /api/feeds", feedsHandler(store))
-	mux.HandleFunc("DELETE /api/feeds/{id}", feedByIDHandler(store))
-	mux.HandleFunc("POST /api/feeds/{id}/refresh", feedRefreshHandler(store))
-	mux.HandleFunc("POST /api/refresh", refreshAllHandler(store))
-	mux.HandleFunc("GET /api/articles", articlesHandler(store))
-	mux.HandleFunc("GET /api/articles/{id}", articleByIDHandler(store))
-	mux.HandleFunc("POST /api/articles/read-all", markAllReadHandler(store))
-	mux.HandleFunc("POST /api/articles/clear", clearArticlesHandler(store))
-	mux.HandleFunc("GET /api/search", searchHandler(store))
-	mux.HandleFunc("GET /api/stats", statsHandler(store))
-	mux.HandleFunc("GET /api/settings", settingsHandler(store))
-	mux.HandleFunc("POST /api/settings", settingsHandler(store))
-	mux.HandleFunc("POST /api/opml/import", opmlImportHandler(store))
-	mux.HandleFunc("POST /api/opml/export", opmlExportHandler(store, *dbPath))
-	mux.Handle("/", staticHandler())
+	mux.HandleFunc("GET /{$}", shellHandler(st))
+	mux.HandleFunc("GET /fragments/feeds", feedListFragmentHandler(st))
+	mux.HandleFunc("GET /fragments/articles", articleListFragmentHandler(st))
+	mux.HandleFunc("GET /fragments/article/{id}", articleFragmentHandler(st))
+	mux.HandleFunc("GET /fragments/search", searchFragmentHandler(st))
+	mux.HandleFunc("POST /api/feeds", addFeedHandler(st))
+	mux.HandleFunc("DELETE /api/feeds/{id}", feedByIDHandler(st))
+	mux.HandleFunc("POST /api/feeds/{id}/refresh", feedRefreshHandler(st))
+	mux.HandleFunc("POST /api/refresh", refreshAllHandler(st))
+	mux.HandleFunc("POST /api/articles/read-all", markAllReadHandler(st))
+	mux.HandleFunc("POST /api/articles/clear", clearArticlesHandler(st))
+	mux.HandleFunc("GET /api/stats", statsHandler(st))
+	mux.HandleFunc("GET /api/settings", settingsHandler(st))
+	mux.HandleFunc("POST /api/settings", settingsHandler(st))
+	mux.HandleFunc("POST /api/opml/import", opmlImportHandler(st))
+	mux.HandleFunc("POST /api/opml/export", opmlExportHandler(st, *dbPath))
+	mux.Handle("GET /", staticHandler())
 
 	// loopback only, backs the window below
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -108,7 +112,7 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			imported, err := ImportOPMLData(store, data)
+			imported, err := ImportOPMLData(st, data)
 			if err != nil {
 				return nil, err
 			}

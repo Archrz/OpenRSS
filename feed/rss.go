@@ -1,10 +1,12 @@
-package main
+package feed
 
 import (
 	"encoding/xml"
 	"regexp"
 	"strings"
 	"time"
+
+	"openrss/store"
 )
 
 type rssItem struct {
@@ -66,7 +68,7 @@ func rssAuthor(it rssItem) (name, email string) {
 	return name, email
 }
 
-func parseRSSFeed(data []byte, now time.Time) (title string, articles []Article, err error) {
+func parseRSSFeed(data []byte, now time.Time) (title string, articles []store.Article, err error) {
 	var f rssXML
 	if err := xml.Unmarshal(data, &f); err != nil {
 		return "", nil, err
@@ -74,17 +76,7 @@ func parseRSSFeed(data []byte, now time.Time) (title string, articles []Article,
 	for _, it := range f.Channel.Items {
 		link := rssLink(it)
 		author, email := rssAuthor(it)
-		content := sanitizer.Sanitize(resolveRelativeURLs(rssContent(it), link))
-		articles = append(articles, Article{
-			Link:        link,
-			Title:       it.Title,
-			Author:      author,
-			AuthorEmail: email,
-			PubDate:     parseDate(it.PubDate),
-			Summary:     summarize(content, 220),
-			Content:     content,
-			FetchedAt:   now,
-		})
+		articles = append(articles, buildArticle(link, it.Title, author, email, it.PubDate, rssContent(it), now))
 	}
 	return f.Channel.Title, articles, nil
 }

@@ -6,6 +6,9 @@ import (
 	"log"
 	"strings"
 	"time"
+
+	"openrss/feed"
+	"openrss/store"
 )
 
 type opmlOutline struct {
@@ -23,12 +26,12 @@ type opmlDoc struct {
 }
 
 // includes nested outlines
-func ParseOPML(data []byte) ([]Feed, error) {
+func ParseOPML(data []byte) ([]store.Feed, error) {
 	var doc opmlDoc
 	if err := xml.Unmarshal(data, &doc); err != nil {
 		return nil, err
 	}
-	feeds := []Feed{}
+	feeds := []store.Feed{}
 	var walk func([]opmlOutline)
 	walk = func(outlines []opmlOutline) {
 		for _, o := range outlines {
@@ -37,7 +40,7 @@ func ParseOPML(data []byte) ([]Feed, error) {
 				if title == "" {
 					title = o.Text
 				}
-				feeds = append(feeds, Feed{URL: o.XMLURL, Title: title, SiteURL: o.HTMLURL})
+				feeds = append(feeds, store.Feed{URL: o.XMLURL, Title: title, SiteURL: o.HTMLURL})
 			}
 			walk(o.Outlines)
 		}
@@ -46,7 +49,7 @@ func ParseOPML(data []byte) ([]Feed, error) {
 	return feeds, nil
 }
 
-func ImportOPMLData(s *Store, data []byte) (int, error) {
+func ImportOPMLData(s *store.Store, data []byte) (int, error) {
 	feeds, err := ParseOPML(data)
 	if err != nil {
 		return 0, err
@@ -59,12 +62,12 @@ func ImportOPMLData(s *Store, data []byte) (int, error) {
 			continue
 		}
 		imported++
-		go RefreshFeed(s, Feed{ID: id, URL: f.URL, Title: f.Title})
+		go feed.RefreshFeed(s, store.Feed{ID: id, URL: f.URL, Title: f.Title})
 	}
 	return imported, nil
 }
 
-func ExportOPML(feeds []Feed) string {
+func ExportOPML(feeds []store.Feed) string {
 	var items strings.Builder
 	for _, f := range feeds {
 		fmt.Fprintf(&items, `    <outline type="rss" text="%s" title="%s" xmlUrl="%s"`,
@@ -89,6 +92,7 @@ func ExportOPML(feeds []Feed) string {
 }
 
 func escXML(s string) string {
-	r := strings.NewReplacer("&", "&amp;", `"`, "&quot;", "<", "&lt;", ">", "&gt;")
-	return r.Replace(s)
+	var buf strings.Builder
+	xml.EscapeText(&buf, []byte(s))
+	return buf.String()
 }

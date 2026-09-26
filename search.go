@@ -4,15 +4,15 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
+
+	"openrss/store"
 )
 
 type SearchResult struct {
-	Article         Article  `json:"article"`
-	Matched         int      `json:"matched"`
-	Total           int      `json:"total"`
-	Ratio           float64  `json:"ratio"`
-	MatchedKeywords []string `json:"matchedKeywords"`
+	Article store.Article `json:"article"`
+	Matched int     `json:"matched"`
+	Total   int     `json:"total"`
+	Ratio   float64 `json:"ratio"`
 }
 
 var normalizeRE = regexp.MustCompile(`[^a-z0-9\s-]+|\s+`)
@@ -41,7 +41,7 @@ func Keywords(query string) []string {
 }
 
 // ranks by match count, then ratio
-func SearchArticles(articles []Article, query string) []SearchResult {
+func SearchArticles(articles []store.Article, query string) []SearchResult {
 	keywords := Keywords(query)
 	if len(keywords) == 0 {
 		return nil
@@ -49,22 +49,21 @@ func SearchArticles(articles []Article, query string) []SearchResult {
 	results := []SearchResult{}
 	for _, a := range articles {
 		haystack := normalizeForSearch(a.Title + " " + a.Summary + " " + a.Content)
-		matchedKeywords := []string{}
+		matched := 0
 		for _, kw := range keywords {
 			if strings.Contains(haystack, kw) {
-				matchedKeywords = append(matchedKeywords, kw)
+				matched++
 			}
 		}
-		if len(matchedKeywords) == 0 {
+		if matched == 0 {
 			continue
 		}
 		a.Content = ""
 		results = append(results, SearchResult{
-			Article:         a,
-			Matched:         len(matchedKeywords),
-			Total:           len(keywords),
-			Ratio:           float64(len(matchedKeywords)) / float64(len(keywords)),
-			MatchedKeywords: matchedKeywords,
+			Article: a,
+			Matched: matched,
+			Total:   len(keywords),
+			Ratio:   float64(matched) / float64(len(keywords)),
 		})
 	}
 	sort.SliceStable(results, func(i, j int) bool {
@@ -74,22 +73,4 @@ func SearchArticles(articles []Article, query string) []SearchResult {
 		return results[i].Ratio > results[j].Ratio
 	})
 	return results
-}
-
-// [from, to), zero means unbounded
-func FilterByDateRange(articles []Article, from, to time.Time) []Article {
-	if from.IsZero() && to.IsZero() {
-		return articles
-	}
-	out := make([]Article, 0, len(articles))
-	for _, a := range articles {
-		if !from.IsZero() && a.PubDate.Before(from) {
-			continue
-		}
-		if !to.IsZero() && !a.PubDate.Before(to) {
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
 }

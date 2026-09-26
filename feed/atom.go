@@ -1,8 +1,10 @@
-package main
+package feed
 
 import (
 	"encoding/xml"
 	"time"
+
+	"openrss/store"
 )
 
 type atomEntry struct {
@@ -50,24 +52,14 @@ func atomPublished(e atomEntry) string {
 	return e.Updated
 }
 
-func parseAtomFeed(data []byte, now time.Time) (title string, articles []Article, err error) {
+func parseAtomFeed(data []byte, now time.Time) (title string, articles []store.Article, err error) {
 	var f atomXML
 	if err := xml.Unmarshal(data, &f); err != nil {
 		return "", nil, err
 	}
 	for _, e := range f.Entries {
 		link := atomLink(e)
-		content := sanitizer.Sanitize(resolveRelativeURLs(atomContent(e), link))
-		articles = append(articles, Article{
-			Link:        link,
-			Title:       e.Title,
-			Author:      e.Author.Name,
-			AuthorEmail: e.Author.Email,
-			PubDate:     parseDate(atomPublished(e)),
-			Summary:     summarize(content, 220),
-			Content:     content,
-			FetchedAt:   now,
-		})
+		articles = append(articles, buildArticle(link, e.Title, e.Author.Name, e.Author.Email, atomPublished(e), atomContent(e), now))
 	}
 	return f.Title, articles, nil
 }
