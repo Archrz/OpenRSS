@@ -5,7 +5,7 @@
 
 This is a project that is built to read through multiple articales and search across all of them, completely locally.
 
-OpenRSS was built on NixOS and is working there, and it has a compiled version for macOS 26 for Apple Silicon, but macOS is still being tested.
+OpenRSS is built to run on macOS and will be for some time going forward.
 
 ## features
 
